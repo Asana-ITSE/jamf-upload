@@ -182,7 +182,7 @@ class JamfUploaderSlacker(JamfUploaderBase):
                 "*New Extension Attribute uploaded to Jamf Pro:*\n"
                 + f"URL: {jss_url}\n"
                 + f"EA Name: *{ea_name}*\n"
-                + f"Script: *{ea_script_path}*\n"
+                + f"Script: *{os.path.basename(ea_script_path)}*\n"
                 + f"Data Type: *{ea_data_type}*"
             )
         else:
