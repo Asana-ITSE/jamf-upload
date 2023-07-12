@@ -48,8 +48,8 @@ class JamfUploaderSlacker(JamfUploaderBase):
             "required": False,
             "description": ("Package version."),
         },
-        "script": {"required": False, "description": ("Script name.")},
-        "priority": {"required": False, "description": ("Script priority.")},
+        "script_name": {"required": False, "description": ("Script name.")},
+        "script_priority": {"required": False, "description": ("Script priority.")},
         "jamfpackageuploader_summary_result": {
             "required": False,
             "description": ("Summary results of package processors."),
@@ -104,8 +104,8 @@ class JamfUploaderSlacker(JamfUploaderBase):
         name = self.env.get("NAME")
         version = self.env.get("version")
         pkg_name = self.env.get("pkg_name")
-        script = self.env.get("script")
-        priority = self.env.get("priority")
+        script_name = self.env.get("script_name")
+        script_priority = self.env.get("script_priority")
         jamfpackageuploader_summary_result = self.env.get(
             "jamfpackageuploader_summary_result"
         )
@@ -162,8 +162,8 @@ class JamfUploaderSlacker(JamfUploaderBase):
             slack_text = (
                 "*New Script uploaded to Jamf Pro:*\n"
                 + f"URL: {jss_url}\n"
-                + f"Script: *{script}*\n"
-                + f"Priority: *{priority}*\n"
+                + f"Script: *{script_name}*\n"
+                + f"Priority: *{script_priority}*\n"
                 + f"Category: *{category}*"
             )
         else:
