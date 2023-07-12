@@ -21,10 +21,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 from JamfUploaderLib.JamfUploaderBase import JamfUploaderBase  # noqa: E402
 
 
-__all__ = ["ScriptSlacker"]
+__all__ = ["JamfUploaderSlacker"]
 
 
-class ScriptSlacker(JamfUploaderBase):
+class JamfUploaderSlacker(JamfUploaderBase):
     description = (
         "A postprocessor for AutoPkg that will send details about a recipe run "
         "to a Slack webhook based on the output of a JamfPolicyUploader "
@@ -202,5 +202,5 @@ class ScriptSlacker(JamfUploaderBase):
 
 
 if __name__ == "__main__":
-    PROCESSOR = ScriptSlacker()
+    PROCESSOR = JamfUploaderSlacker()
     PROCESSOR.execute_shell()
