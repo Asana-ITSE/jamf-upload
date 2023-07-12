@@ -51,6 +51,9 @@ class JamfUploaderSlacker(JamfUploaderBase):
         "script_name": {"required": False, "description": ("Script name.")},
         "script_priority": {"required": False, "description": ("Script priority.")},
         "script_category": {"required": False, "description": ("Script priority.")},
+        "ea_name": {"required": False, "description": ("Extension Attribute name.")},
+        "ea_script_path": {"required": False, "description": ("Extension Attribute script.")},
+        "ea_data_type": {"required": False, "description": ("Extension Attribute data type.")},
         "jamfpackageuploader_summary_result": {
             "required": False,
             "description": ("Summary results of package processors."),
@@ -108,6 +111,9 @@ class JamfUploaderSlacker(JamfUploaderBase):
         script_name = self.env.get("script_name")
         script_priority = self.env.get("script_priority")
         script_category = self.env.get("script_category")
+        ea_name = self.env.get("ea_name")
+        ea_script_path = self.env.get("ea_script_path")
+        ea_data_type = self.env.get("ea_data_type")
         jamfpackageuploader_summary_result = self.env.get(
             "jamfpackageuploader_summary_result"
         )
@@ -116,6 +122,9 @@ class JamfUploaderSlacker(JamfUploaderBase):
         )
         jamfscriptuploader_summary_result = self.env.get(
             "jamfscriptuploader_summary_result"
+        )
+        jamfextensionattributeuploader_summary_result = self.env.get(
+            "jamfextensionattributeuploader_summary_result"
         )
 
         slack_username = self.env.get("slack_username")
@@ -167,6 +176,14 @@ class JamfUploaderSlacker(JamfUploaderBase):
                 + f"Script: *{script_name}*\n"
                 + f"Priority: *{script_priority}*\n"
                 + f"Category: *{script_category}*"
+            )
+        elif jamfextensionattributeuploader_summary_result:
+            slack_text = (
+                "*New Extension Attribute uploaded to Jamf Pro:*\n"
+                + f"URL: {jss_url}\n"
+                + f"EA Name: *{ea_name}*\n"
+                + f"Script: *{ea_script_path}*\n"
+                + f"Data Type: *{ea_data_type}*"
             )
         else:
             self.output("Nothing to report to Slack")
