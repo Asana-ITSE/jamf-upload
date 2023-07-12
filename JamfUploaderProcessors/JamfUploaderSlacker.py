@@ -1,23 +1,9 @@
 #!/usr/local/autopkg/python
 
 """
-Copyright 2020 Graham Pugh
+Completely borrowed from Graham Pugh's JamfUploaderSlacker.py processor and used to capture script and EA script uploads.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-NOTES:
-Set the webhook_url to the one provided by Slack when you create the webhook at
-https://my.slack.com/services/new/incoming-webhook/
+https://raw.githubusercontent.com/grahampugh/jamf-upload/main/JamfUploaderProcessors/JamfUploaderSlacker.py
 """
 
 import json
@@ -35,10 +21,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 from JamfUploaderLib.JamfUploaderBase import JamfUploaderBase  # noqa: E402
 
 
-__all__ = ["JamfUploaderSlacker"]
+__all__ = ["ScriptSlacker"]
 
 
-class JamfUploaderSlacker(JamfUploaderBase):
+class ScriptSlacker(JamfUploaderBase):
     description = (
         "A postprocessor for AutoPkg that will send details about a recipe run "
         "to a Slack webhook based on the output of a JamfPolicyUploader "
@@ -62,11 +48,17 @@ class JamfUploaderSlacker(JamfUploaderBase):
             "required": False,
             "description": ("Package version."),
         },
+        "script": {"required": False, "description": ("Script name.")},
+        "priority": {"required": False, "description": ("Script priority.")},
         "jamfpackageuploader_summary_result": {
             "required": False,
             "description": ("Summary results of package processors."),
         },
         "jamfpolicyuploader_summary_result": {
+            "required": False,
+            "description": ("Summary results of policy processors."),
+        },
+        "jamfscriptuploader_summary_result": {
             "required": False,
             "description": ("Summary results of policy processors."),
         },
@@ -112,11 +104,16 @@ class JamfUploaderSlacker(JamfUploaderBase):
         name = self.env.get("NAME")
         version = self.env.get("version")
         pkg_name = self.env.get("pkg_name")
+        script = self.env.get("script")
+        priority = self.env.get("priority")
         jamfpackageuploader_summary_result = self.env.get(
             "jamfpackageuploader_summary_result"
         )
         jamfpolicyuploader_summary_result = self.env.get(
             "jamfpolicyuploader_summary_result"
+        )
+        jamfscriptuploader_summary_result = self.env.get(
+            "jamfscriptuploader_summary_result"
         )
 
         slack_username = self.env.get("slack_username")
@@ -161,6 +158,14 @@ class JamfUploaderSlacker(JamfUploaderBase):
                 + f"Category: *{category}*\n"
                 + f"Package: *{pkg_name}*"
             )
+        elif jamfscriptuploader_summary_result:
+            slack_text = (
+                "*New Script uploaded to Jamf Pro:*\n"
+                + f"URL: {jss_url}\n"
+                + f"Script: *{script}*\n"
+                + f"Priority: *{priority}*\n"
+                + f"Category: *{category}*"
+            )
         else:
             self.output("Nothing to report to Slack")
             return
@@ -197,5 +202,5 @@ class JamfUploaderSlacker(JamfUploaderBase):
 
 
 if __name__ == "__main__":
-    PROCESSOR = JamfUploaderSlacker()
+    PROCESSOR = ScriptSlacker()
     PROCESSOR.execute_shell()
