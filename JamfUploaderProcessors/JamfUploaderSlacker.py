@@ -50,6 +50,7 @@ class JamfUploaderSlacker(JamfUploaderBase):
         },
         "script_name": {"required": False, "description": ("Script name.")},
         "script_priority": {"required": False, "description": ("Script priority.")},
+        "script_category": {"required": False, "description": ("Script priority.")},
         "jamfpackageuploader_summary_result": {
             "required": False,
             "description": ("Summary results of package processors."),
@@ -106,6 +107,7 @@ class JamfUploaderSlacker(JamfUploaderBase):
         pkg_name = self.env.get("pkg_name")
         script_name = self.env.get("script_name")
         script_priority = self.env.get("script_priority")
+        script_category = self.env.get("script_category")
         jamfpackageuploader_summary_result = self.env.get(
             "jamfpackageuploader_summary_result"
         )
@@ -164,7 +166,7 @@ class JamfUploaderSlacker(JamfUploaderBase):
                 + f"URL: {jss_url}\n"
                 + f"Script: *{script_name}*\n"
                 + f"Priority: *{script_priority}*\n"
-                + f"Category: *{category}*"
+                + f"Category: *{script_category}*"
             )
         else:
             self.output("Nothing to report to Slack")
