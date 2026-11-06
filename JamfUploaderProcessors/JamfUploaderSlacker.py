@@ -1,25 +1,36 @@
 #!/usr/local/autopkg/python
 
 """
+
 Completely borrowed from Graham Pugh's JamfUploaderSlacker.py processor and used to capture script and EA script uploads.
 
 https://raw.githubusercontent.com/grahampugh/jamf-upload/main/JamfUploaderProcessors/JamfUploaderSlacker.py
+
+CHANGE (2026-11): the Slack POST no longer goes through JamfUploaderBase.curl().
+The upstream base class signature changed (curl() now requires 'api_type'), and
+because AutoPkg runs every processor in one Python process, this processor ends
+up with the *upstream* JamfUploaderBase (already imported by the uploader
+processors) instead of this repo's copy. Posting with the standard library keeps
+the Slack notification independent of the base class version. A failed Slack post
+is reported as a warning and never fails the recipe: the upload already happened
+before this post-processor runs.
+
 """
 
 import json
 import os.path
 import sys
-
+import urllib.error
+import urllib.request
 from time import sleep
+
 from autopkglib import ProcessorError  # pylint: disable=import-error
 
 # to use a base module in AutoPkg we need to add this path to the sys.path.
 # this violates flake8 E402 (PEP8 imports) but is unavoidable, so the following
 # imports require noqa comments for E402
 sys.path.insert(0, os.path.dirname(__file__))
-
 from JamfUploaderLib.JamfUploaderBase import JamfUploaderBase  # noqa: E402
-
 
 __all__ = ["JamfUploaderSlacker"]
 
@@ -52,8 +63,14 @@ class JamfUploaderSlacker(JamfUploaderBase):
         "script_priority": {"required": False, "description": ("Script priority.")},
         "script_category": {"required": False, "description": ("Script priority.")},
         "ea_name": {"required": False, "description": ("Extension Attribute name.")},
-        "ea_script_path": {"required": False, "description": ("Extension Attribute script.")},
-        "ea_data_type": {"required": False, "description": ("Extension Attribute data type.")},
+        "ea_script_path": {
+            "required": False,
+            "description": ("Extension Attribute script."),
+        },
+        "ea_data_type": {
+            "required": False,
+            "description": ("Extension Attribute data type."),
+        },
         "jamfpackageuploader_summary_result": {
             "required": False,
             "description": ("Summary results of package processors."),
@@ -86,18 +103,28 @@ class JamfUploaderSlacker(JamfUploaderBase):
             "description": ("Slack display emoji markup."),
         },
     }
+
     output_variables = {}
 
     __doc__ = description
 
-    def slack_status_check(self, r):
-        """Return a message dependent on the HTTP response"""
-        if r.status_code == 200 or r.status_code == 201:
-            self.output("Slack webhook sent successfully")
-            return "break"
-        else:
-            self.output("WARNING: Slack webhook failed to send")
-            self.output(r.output, verbose_level=2)
+    def post_to_slack(self, url, data):
+        """POST the JSON payload to the Slack webhook using only the standard
+        library. Returns the HTTP status code, or None on a network error."""
+        request = urllib.request.Request(
+            url,
+            data=data.encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return response.status
+        except urllib.error.HTTPError as error:
+            return error.code
+        except (urllib.error.URLError, OSError) as error:
+            self.output(f"WARNING: Slack webhook request error: {error}")
+            return None
 
     def main(self):
         """Do the main thing"""
@@ -126,7 +153,6 @@ class JamfUploaderSlacker(JamfUploaderBase):
         jamfextensionattributeuploader_summary_result = self.env.get(
             "jamfextensionattributeuploader_summary_result"
         )
-
         slack_username = self.env.get("slack_username")
         slack_icon_url = self.env.get("slack_icon_url") or ""
         slack_webhook_url = self.env.get("slack_webhook_url")
@@ -134,6 +160,7 @@ class JamfUploaderSlacker(JamfUploaderBase):
         slack_icon_emoji = self.env.get("slack_icon_emoji") or ""
 
         selfservice_policy_name = name
+
         self.output(f"JSS address: {jss_url}")
         self.output(f"Title: {selfservice_policy_name}")
         self.output(f"Policy: {policy_name}")
@@ -203,25 +230,32 @@ class JamfUploaderSlacker(JamfUploaderBase):
         slack_json = json.dumps(slack_data)
 
         count = 0
+        status_code = None
         while True:
             count += 1
             self.output(
                 "Slack webhook post attempt {}".format(count),
                 verbose_level=2,
             )
-            r = self.curl(
-                request="POST",
-                url=slack_webhook_url,
-                data=slack_json,
-                endpoint_type="slack",
-            )
-            # check HTTP response
-            if self.slack_status_check(r) == "break":
+            status_code = self.post_to_slack(slack_webhook_url, slack_json)
+
+            if status_code in (200, 201):
+                self.output("Slack webhook sent successfully")
                 break
+
+            self.output(
+                "WARNING: Slack webhook failed to send (HTTP status: {})".format(
+                    status_code
+                )
+            )
             if count > 5:
-                self.output("Slack webhook send did not succeed after 5 attempts")
-                self.output("\nHTTP POST Response Code: {}".format(r.status_code))
-                raise ProcessorError("ERROR: Slack webhook failed to send")
+                # The Jamf upload already succeeded before this post-processor ran,
+                # so a Slack outage is reported but must not fail the recipe.
+                self.output(
+                    "WARNING: Slack webhook send did not succeed after 5 attempts; "
+                    "continuing without a notification."
+                )
+                break
             sleep(10)
 
 
