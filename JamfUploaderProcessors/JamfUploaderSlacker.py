@@ -10,18 +10,21 @@ CHANGE (2026-11): the Slack POST no longer goes through JamfUploaderBase.curl().
 The upstream base class signature changed (curl() now requires 'api_type'), and
 because AutoPkg runs every processor in one Python process, this processor ends
 up with the *upstream* JamfUploaderBase (already imported by the uploader
-processors) instead of this repo's copy. Posting with the standard library keeps
-the Slack notification independent of the base class version. A failed Slack post
-is reported as a warning and never fails the recipe: the upload already happened
-before this post-processor runs.
+processors) instead of this repo's copy. The post is made by calling the macOS
+system /usr/bin/curl directly (it uses the system certificate store; AutoPkg's
+bundled Python has no CA bundle, so urllib fails with CERTIFICATE_VERIFY_FAILED).
+The webhook URL is passed to curl on stdin so it never appears in the process
+list or logs. A failed Slack post is reported as a warning and never fails the
+recipe: the upload already happened before this post-processor runs.
 
 """
 
 import json
+import os
 import os.path
+import subprocess
 import sys
-import urllib.error
-import urllib.request
+import tempfile
 from time import sleep
 
 from autopkglib import ProcessorError  # pylint: disable=import-error
@@ -109,22 +112,59 @@ class JamfUploaderSlacker(JamfUploaderBase):
     __doc__ = description
 
     def post_to_slack(self, url, data):
-        """POST the JSON payload to the Slack webhook using only the standard
-        library. Returns the HTTP status code, or None on a network error."""
-        request = urllib.request.Request(
-            url,
-            data=data.encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+        """POST the JSON payload to the Slack webhook with the system curl.
+        Returns the HTTP status code (int), or None if curl itself failed."""
+        payload_file = None
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                return response.status
-        except urllib.error.HTTPError as error:
-            return error.code
-        except (urllib.error.URLError, OSError) as error:
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".json", delete=False
+            ) as handle:
+                handle.write(data)
+                payload_file = handle.name
+            cmd = [
+                "/usr/bin/curl",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                "30",
+                "--output",
+                "/dev/null",
+                "--write-out",
+                "%{http_code}",
+                "--request",
+                "POST",
+                "--header",
+                "Content-type: application/json",
+                "--data-binary",
+                "@" + payload_file,
+                "--config",
+                "-",
+            ]
+            # the URL is secret: give it to curl on stdin, not as an argument
+            result = subprocess.run(
+                cmd,
+                input='url = "{}"\n'.format(url),
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode != 0:
+                self.output(
+                    "WARNING: curl exit code {}: {}".format(
+                        result.returncode, result.stderr.strip()
+                    )
+                )
+                return None
+            try:
+                return int(result.stdout.strip())
+            except ValueError:
+                return None
+        except OSError as error:
             self.output(f"WARNING: Slack webhook request error: {error}")
             return None
+        finally:
+            if payload_file and os.path.exists(payload_file):
+                os.remove(payload_file)
 
     def main(self):
         """Do the main thing"""
